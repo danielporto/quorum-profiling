@@ -80,7 +80,7 @@ func (ps *PrometheusMetricsService) Start() {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", ps.port), nil))
 }
 
-func (ps *PrometheusMetricsService) publishMetrics(ref time.Time, tps uint64, txnCnt uint64, blkCnt uint64, btime, bnum uint64, btx int) {
+func (ps *PrometheusMetricsService) publishMetrics(ref time.Time, tps uint64, txnCnt uint64, blkCnt uint64) {
 	ps.tpsGauge.SetToCurrentTime()
 	ps.tpsGauge.Set(float64(tps))
 	ps.txnsGauge.SetToCurrentTime()
@@ -88,6 +88,10 @@ func (ps *PrometheusMetricsService) publishMetrics(ref time.Time, tps uint64, tx
 	ps.blocksGauge.SetToCurrentTime()
 	ps.blocksGauge.Set(float64(blkCnt))
 
+	log.Debug("published metrics to prometheus")
+}
+
+func (ps *PrometheusMetricsService) publishBloclMetrics(ref time.Time, btime, bnum uint64, btx int) {
 	ps.blockTimeGauge.SetToCurrentTime()
 	ps.blockTimeGauge.Set(float64(btime))
 	ps.blockNumGauge.SetToCurrentTime()
@@ -95,5 +99,5 @@ func (ps *PrometheusMetricsService) publishMetrics(ref time.Time, tps uint64, tx
 	ps.blockTxnGauge.SetToCurrentTime()
 	ps.blockTxnGauge.Set(float64(btx))
 
-	log.Debug("published metrics to prometheus")
+	log.Debug("published block metrics to prometheus")
 }

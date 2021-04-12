@@ -147,6 +147,7 @@ func (tm *TPSMonitor) readBlock(block *reader.BlockData) {
 		} else {
 			blkTime = time.Unix(int64(block.Time), 0)
 		}
+		tm.promethService.publishBloclMetrics(blkTime, block.Time, block.Number, block.TxnCnt)
 	}
 
 	if tm.firstBlkTime != nil {
@@ -185,8 +186,7 @@ func (tm *TPSMonitor) readBlock(block *reader.BlockData) {
 		//publish metrics to aws cloudwatch
 		go tm.putMetricsInAws(tm.blkTimeNext, fmt.Sprintf("%v", tps), fmt.Sprintf("%v", tm.txnsCnt), fmt.Sprintf("%v", tm.blkCnt))
 		//publish metrics to prometheus
-		go tm.putMetricsInPrometheus(tm.blkTimeNext, tps, tm.txnsCnt, tm.blkCnt, block.Time, block.Number, block.TxnCnt)
-		//publish metrics to influxdb
+		go tm.putMetricsInPrometheus(tm.blkTimeNext, tps, tm.txnsCnt, tm.blkCnt)
 		go tm.putMetricsInInfluxdb(tm.blkTimeNext, tps, tm.txnsCnt, tm.blkCnt)
 		tm.refTimeNext = tm.refTimeNext.Add(time.Second)
 		tm.blkTimeNext = tm.blkTimeNext.Add(time.Second)
@@ -250,9 +250,9 @@ func (tm *TPSMonitor) printTPS() {
 	}
 }
 
-func (tm *TPSMonitor) putMetricsInPrometheus(tmRef time.Time, tps uint64, txnCnt uint64, blkCnt uint64, btime uint64, bnum uint64, btx int) {
+func (tm *TPSMonitor) putMetricsInPrometheus(tmRef time.Time, tps uint64, txnCnt uint64, blkCnt uint64) {
 	if tm.promethService != nil {
-		tm.promethService.publishMetrics(tmRef, tps, txnCnt, blkCnt, btime, bnum, btx)
+		tm.promethService.publishMetrics(tmRef, tps, txnCnt, blkCnt)
 	}
 }
 
