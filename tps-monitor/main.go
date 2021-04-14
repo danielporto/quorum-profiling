@@ -20,6 +20,7 @@ var (
 		tpsmon.TpsPortFlag,
 		tpsmon.HttpEndpointFlag,
 		tpsmon.ReportFileFlag,
+		tpsmon.BlockReportFileFlag,
 		tpsmon.FromBlockFlag,
 		tpsmon.ToBlockFlag,
 		tpsmon.AwsMetricsEnabledFlag,
@@ -126,7 +127,7 @@ func tps(ctx *cli.Context) error {
 	isRaft := ctx.GlobalString(tpsmon.ConsensusFlag.Name) == "raft"
 
 	tm := tpsmon.NewTPSMonitor(awsService, promethService, influxdbService, isRaft, ctx.GlobalString(tpsmon.ReportFileFlag.Name),
-		fromBlk, toBlk, httpendpoint)
+		ctx.GlobalString(tpsmon.BlockReportFileFlag.Name), fromBlk, toBlk, httpendpoint)
 	startTps(tm)
 	tpsPort := ctx.GlobalInt(tpsmon.TpsPortFlag.Name)
 	tpsmon.NewTPSServer(tm, tpsPort)

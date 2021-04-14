@@ -17,14 +17,19 @@ type TPSRecord struct {
 	tps   uint32 // no of transactions per second
 	blks  uint64 // total block count
 	txns  uint64 // total transaction count
+	btime uint64 // time written in the block
+	blkid uint64 // id written in the block
+	btxs  int // transactions in the block
+	bgas uint64 // gas spent processing this block
+
 }
 
 func (t TPSRecord) String() string {
-	return fmt.Sprintf("TPSRecord: ltime:%v rtime:%v tps:%v txns:%v blks:%v", t.ltime, t.rtime, t.tps, t.txns, t.blks)
+	return fmt.Sprintf("TPSRecord: ltime:%v rtime:%v tps:%v txns:%v blks:%v btime:%v blkid:%v btxs:%v bgas:%v", t.ltime, t.rtime, t.tps, t.txns, t.blks, t.btime, t.blkid, t.btxs, t.bgas)
 }
 
 func (t TPSRecord) ReportString() string {
-	return fmt.Sprintf("%v,%v,%v,%v,%v\n", t.ltime, t.rtime, t.tps, t.txns, t.blks)
+	return fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n", t.ltime, t.rtime, t.tps, t.txns, t.blks, t.btime, t.blkid, t.btxs,t.bgas)
 }
 
 // TPSMonitor implements a monitor service
@@ -34,6 +39,7 @@ type TPSMonitor struct {
 	chainReader     *reader.GethClient     // ethereum chainReader
 	tpsRecs         []TPSRecord            // list of TPS data points recorded
 	report          string                 // report name to store TPS data points
+	blockreport          string            // report block data to store TPS data points
 	fromBlk         uint64                 // from block number
 	toBlk           uint64                 // to block number
 	stopc           chan struct{}          // stop channel
@@ -44,6 +50,7 @@ type TPSMonitor struct {
 	blkCnt          uint64
 	txnsCnt         uint64   // total transaction count
 	rptFile         *os.File // report file
+	blkrptFile      *os.File // report file
 	awsService      *AwsCloudwatchService
 	promethService  *PrometheusMetricsService
 	influxdbService *InfluxdbMetricsService
@@ -54,11 +61,12 @@ const (
 	dateFmtMinSec = "02 Jan 2006 15:04:05"
 )
 
-func NewTPSMonitor(awsService *AwsCloudwatchService, promethService *PrometheusMetricsService, influxdbService *InfluxdbMetricsService, isRaft bool, report string, frmBlk uint64, toBlk uint64, httpendpoint string) *TPSMonitor {
+func NewTPSMonitor(awsService *AwsCloudwatchService, promethService *PrometheusMetricsService, influxdbService *InfluxdbMetricsService, isRaft bool, report string, blockreport string, frmBlk uint64, toBlk uint64, httpendpoint string) *TPSMonitor {
 	bdCh := make(chan *reader.BlockData, 1)
 	tm := &TPSMonitor{
 		isRaft:          isRaft,
 		report:          report,
+		blockreport:	blockreport,
 		bdCh:            bdCh,
 		fromBlk:         frmBlk,
 		toBlk:           toBlk,
@@ -73,10 +81,20 @@ func NewTPSMonitor(awsService *AwsCloudwatchService, promethService *PrometheusM
 		if tm.rptFile, err = os.Create(tm.report); err != nil {
 			log.Fatalf("error creating report file %s\n", tm.report)
 		}
-		if _, err := tm.rptFile.WriteString("localTime,refTime,TPS,TxnCount,BlockCount\n"); err != nil {
+		if _, err := tm.rptFile.WriteString("localTime,refTime,TPS,TxnCount,BlockCount,BlockTime,BlockID,BlockTransactions,BlockGas\n"); err != nil {
 			log.Errorf("writing to report failed err:%v", err)
 		}
 		tm.rptFile.Sync()
+	}
+	if tm.blockreport != "" {
+		var err error
+		if tm.blkrptFile, err = os.Create(tm.blockreport); err != nil {
+			log.Fatalf("error creating block report file %s\n", tm.blockreport)
+		}
+		if _, err := tm.blkrptFile.WriteString("BlockTime,BlockID,BlockTransactions,BlockGas\n"); err != nil {
+			log.Errorf("writing to block report failed err:%v", err)
+		}
+		tm.blkrptFile.Sync()
 	}
 	return tm
 }
@@ -108,6 +126,9 @@ func (tm *TPSMonitor) Stop() {
 	close(tm.stopc)
 	if tm.rptFile != nil {
 		tm.rptFile.Close()
+	}
+	if tm.blkrptFile != nil {
+		tm.blkrptFile.Close()
 	}
 }
 
@@ -147,7 +168,14 @@ func (tm *TPSMonitor) readBlock(block *reader.BlockData) {
 		} else {
 			blkTime = time.Unix(int64(block.Time), 0)
 		}
-		tm.promethService.publishBloclMetrics(blkTime, block.Time, block.Number, block.TxnCnt)
+		if tm.blkrptFile != nil {
+			if _, err := tm.blkrptFile.WriteString(fmt.Sprintf("%v,%v,%v,%v\n",  block.Time, block.Number, block.TxnCnt,block.GasUsed)); err != nil {
+				log.Errorf("writing to report failed %v", err)
+			}
+			tm.blkrptFile.Sync()
+		}
+
+		//log.Infof("blockinfo: time:%v id:%v transactions:%v gas:%v", block.Time, block.Number, block.TxnCnt, block.GasUsed)
 	}
 
 	if tm.firstBlkTime != nil {
@@ -173,9 +201,9 @@ func (tm *TPSMonitor) readBlock(block *reader.BlockData) {
 		mm := tm.refTimeNext.Minute()
 		ss := tm.refTimeNext.Second()
 		rtime := fmt.Sprintf("%02d:%02d:%02d:%02d", yd, hh, mm, ss)
+		tr := TPSRecord{rtime: rtime, ltime: ltime, tps: uint32(tps), blks: tm.blkCnt, txns: tm.txnsCnt, btime: 0, blkid: 0, btxs: -1, bgas: 0}
 
-		tr := TPSRecord{rtime: rtime, ltime: ltime, tps: uint32(tps), blks: tm.blkCnt, txns: tm.txnsCnt}
-		log.Debug(tr.String())
+		log.Debugf(tr.String())
 		if tm.rptFile != nil {
 			if _, err := tm.rptFile.WriteString(tr.ReportString()); err != nil {
 				log.Errorf("writing to report failed %v", err)
@@ -191,7 +219,6 @@ func (tm *TPSMonitor) readBlock(block *reader.BlockData) {
 		tm.refTimeNext = tm.refTimeNext.Add(time.Second)
 		tm.blkTimeNext = tm.blkTimeNext.Add(time.Second)
 	}
-
 	if !nilBlk {
 		tm.blkCnt++
 		tm.txnsCnt += uint64(block.TxnCnt)
@@ -217,7 +244,9 @@ func (tm *TPSMonitor) calcTpsFromNewBlocks() {
 				log.Fatal("reading block data failed")
 				return
 			}
-			log.Infof("received new block %v", block)
+			log.Debugf("received new block %v", block)
+			tm.putBlockMetricsInPrometheus(block.Time, block.Number, block.TxnCnt, block.GasUsed)
+			// TODO create a block report
 			tm.readBlock(block)
 		case <-ticker.C:
 			tm.readBlock(nil)
@@ -255,6 +284,13 @@ func (tm *TPSMonitor) putMetricsInPrometheus(tmRef time.Time, tps uint64, txnCnt
 		tm.promethService.publishMetrics(tmRef, tps, txnCnt, blkCnt)
 	}
 }
+
+func (tm *TPSMonitor) putBlockMetricsInPrometheus(btime, bnum uint64, btx int, gas uint64) {
+	if tm.promethService != nil {
+		tm.promethService.publishBlockMetrics(btime, bnum, btx, gas)
+	}
+}
+
 
 func (tm *TPSMonitor) putMetricsInInfluxdb(t time.Time, tps uint64, txnsCnt uint64, blkCnt uint64) {
 	if tm.influxdbService != nil {

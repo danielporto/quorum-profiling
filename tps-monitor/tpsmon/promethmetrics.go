@@ -17,6 +17,7 @@ type PrometheusMetricsService struct {
 	blockNumGauge prometheus.Gauge
 	blockTxnGauge prometheus.Gauge
 	blockTimeGauge prometheus.Gauge
+	blockGasGauge prometheus.Gauge
 	port        int
 }
 
@@ -60,7 +61,12 @@ func NewPrometheusMetricsService(port int) *PrometheusMetricsService {
 			Name:      "block_time",
 			Help:      "When the block was generated",
 		}),
-
+		blockGasGauge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "Quorum",
+			Subsystem: "TransactionProcessing",
+			Name:      "block_gas",
+			Help:      "Used gas to process this block",
+		}),
 
 
 		port: port,
@@ -75,6 +81,7 @@ func (ps *PrometheusMetricsService) Start() {
 	prometheus.MustRegister(ps.blockNumGauge)
 	prometheus.MustRegister(ps.blockTxnGauge)
 	prometheus.MustRegister(ps.blockTimeGauge)
+	prometheus.MustRegister(ps.blockGasGauge)
 
 	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", ps.port), nil))
@@ -91,13 +98,16 @@ func (ps *PrometheusMetricsService) publishMetrics(ref time.Time, tps uint64, tx
 	log.Debug("published metrics to prometheus")
 }
 
-func (ps *PrometheusMetricsService) publishBloclMetrics(ref time.Time, btime, bnum uint64, btx int) {
+func (ps *PrometheusMetricsService) publishBlockMetrics(btime, bnum uint64, btx int, gas uint64) {
 	ps.blockTimeGauge.SetToCurrentTime()
 	ps.blockTimeGauge.Set(float64(btime))
 	ps.blockNumGauge.SetToCurrentTime()
 	ps.blockNumGauge.Set(float64(bnum))
 	ps.blockTxnGauge.SetToCurrentTime()
 	ps.blockTxnGauge.Set(float64(btx))
+	ps.blockGasGauge.SetToCurrentTime()
+	ps.blockGasGauge.Set(float64(gas))
+
 
 	log.Debug("published block metrics to prometheus")
 }

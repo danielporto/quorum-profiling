@@ -28,7 +28,7 @@ func (s TPSServer) Start() {
 }
 
 func (s TPSServer) PrintTPSData(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "localTime,refTime,TPS,TxnCount,BlockCount\n")
+	fmt.Fprintf(w, "localTime,refTime,TPS,TxnCount,BlockCount,BlockTime,BlockID,BlockTransactions,BlockGas\n")
 	for _, v := range s.tm.tpsRecs {
 		fmt.Fprintf(w, "%s", v.ReportString())
 	}

@@ -80,6 +80,12 @@ var (
 		Value: "tps-report.csv",
 	}
 
+	BlockReportFileFlag = cli.StringFlag{
+		Name:  "blockreport",
+		Usage: "Full path of csv report file",
+		Value: "block-report.csv",
+	}
+
 	TpsPortFlag = cli.IntFlag{
 		Name:  "port",
 		Usage: "Http port for tps monitor",
