@@ -38,6 +38,6 @@ func (s TPSServer) PrintTPSData(w http.ResponseWriter, r *http.Request) {
 func (s TPSServer) PrintBlockData(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "block{ number, txns, time, gasLimit, gasUsed}\n")
 	for _, v := range s.tm.blockRecs {
-		fmt.Fprintf(w, "%s", v.String())
+		fmt.Fprintf(w, "%s\n", v.String())
 	}
 }
