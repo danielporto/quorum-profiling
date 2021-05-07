@@ -38,6 +38,7 @@ type TPSMonitor struct {
 	bdCh            chan *reader.BlockData // block data from chain
 	chainReader     *reader.GethClient     // ethereum chainReader
 	tpsRecs         []TPSRecord            // list of TPS data points recorded
+	blockRecs		[]reader.BlockData	   // list of block data recorded
 	report          string                 // report name to store TPS data points
 	blockreport          string            // report block data to store TPS data points
 	fromBlk         uint64                 // from block number
@@ -173,6 +174,8 @@ func (tm *TPSMonitor) readBlock(block *reader.BlockData) {
 				log.Errorf("writing to report failed %v", err)
 			}
 			tm.blkrptFile.Sync()
+			tm.blockRecs = append(tm.blockRecs, *block)
+
 		}
 
 		//log.Infof("blockinfo: time:%v id:%v transactions:%v gas:%v", block.Time, block.Number, block.TxnCnt, block.GasUsed)
