@@ -17,19 +17,14 @@ type TPSRecord struct {
 	tps   uint32 // no of transactions per second
 	blks  uint64 // total block count
 	txns  uint64 // total transaction count
-	btime uint64 // time written in the block
-	blkid uint64 // id written in the block
-	btxs  int // transactions in the block
-	bgas uint64 // gas spent processing this block
-
 }
 
 func (t TPSRecord) String() string {
-	return fmt.Sprintf("TPSRecord: ltime:%v rtime:%v tps:%v txns:%v blks:%v btime:%v blkid:%v btxs:%v bgas:%v", t.ltime, t.rtime, t.tps, t.txns, t.blks, t.btime, t.blkid, t.btxs, t.bgas)
+	return fmt.Sprintf("TPSRecord: ltime:%v rtime:%v tps:%v txns:%v blks:%v", t.ltime, t.rtime, t.tps, t.txns, t.blks)
 }
 
 func (t TPSRecord) ReportString() string {
-	return fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n", t.ltime, t.rtime, t.tps, t.txns, t.blks, t.btime, t.blkid, t.btxs,t.bgas)
+	return fmt.Sprintf("%v,%v,%v,%v,%v\n", t.ltime, t.rtime, t.tps, t.txns, t.blks)
 }
 
 // TPSMonitor implements a monitor service
@@ -82,7 +77,7 @@ func NewTPSMonitor(awsService *AwsCloudwatchService, promethService *PrometheusM
 		if tm.rptFile, err = os.Create(tm.report); err != nil {
 			log.Fatalf("error creating report file %s\n", tm.report)
 		}
-		if _, err := tm.rptFile.WriteString("localTime,refTime,TPS,TxnCount,BlockCount,BlockTime,BlockID,BlockTransactions,BlockGas\n"); err != nil {
+		if _, err := tm.rptFile.WriteString("localTime,refTime,TPS,TxnCount,BlockCount\n"); err != nil {
 			log.Errorf("writing to report failed err:%v", err)
 		}
 		tm.rptFile.Sync()
@@ -170,7 +165,7 @@ func (tm *TPSMonitor) readBlock(block *reader.BlockData) {
 			blkTime = time.Unix(int64(block.Time), 0)
 		}
 		if tm.blkrptFile != nil {
-			if _, err := tm.blkrptFile.WriteString(fmt.Sprintf("%v,%v,%v,%v\n",  block.Time, block.Number, block.TxnCnt,block.GasUsed)); err != nil {
+			if _, err := tm.blkrptFile.WriteString(fmt.Sprintf("%v, %v, %v, %v, %v\n", time.Unix(int64(block.Time),0) , block.Time, block.Number, block.TxnCnt,block.GasUsed)); err != nil {
 				log.Errorf("writing to report failed %v", err)
 			}
 			tm.blkrptFile.Sync()
@@ -204,7 +199,7 @@ func (tm *TPSMonitor) readBlock(block *reader.BlockData) {
 		mm := tm.refTimeNext.Minute()
 		ss := tm.refTimeNext.Second()
 		rtime := fmt.Sprintf("%02d:%02d:%02d:%02d", yd, hh, mm, ss)
-		tr := TPSRecord{rtime: rtime, ltime: ltime, tps: uint32(tps), blks: tm.blkCnt, txns: tm.txnsCnt, btime: 0, blkid: 0, btxs: -1, bgas: 0}
+		tr := TPSRecord{rtime: rtime, ltime: ltime, tps: uint32(tps), blks: tm.blkCnt, txns: tm.txnsCnt}
 
 		log.Debugf(tr.String())
 		if tm.rptFile != nil {
