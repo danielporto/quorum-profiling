@@ -5,6 +5,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type TPSServer struct {
@@ -38,6 +39,7 @@ func (s TPSServer) PrintTPSData(w http.ResponseWriter, r *http.Request) {
 func (s TPSServer) PrintBlockData(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "block{ number, txns, time, gasLimit, gasUsed}\n")
 	for _, v := range s.tm.blockRecs {
-		fmt.Fprintf(w, "%s\n", v.String())
+		t := time.Unix(int64(v.Time),0)
+		fmt.Fprintf(w, "%s -  %s\n", t ,v.String())
 	}
 }
