@@ -87,7 +87,7 @@ func NewTPSMonitor(awsService *AwsCloudwatchService, promethService *PrometheusM
 		if tm.blkrptFile, err = os.Create(tm.blockreport); err != nil {
 			log.Fatalf("error creating block report file %s\n", tm.blockreport)
 		}
-		if _, err := tm.blkrptFile.WriteString("BlockTime,BlockID,BlockTransactions,BlockGas\n"); err != nil {
+		if _, err := tm.blkrptFile.WriteString("#BlockDate,BlockTime,BlockID,BlockTransactions,BlockGas\n"); err != nil {
 			log.Errorf("writing to block report failed err:%v", err)
 		}
 		tm.blkrptFile.Sync()
